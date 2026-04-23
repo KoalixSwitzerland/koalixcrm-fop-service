@@ -31,6 +31,8 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.10'
       - name: Build & test
         run: gradle --no-daemon build
 
