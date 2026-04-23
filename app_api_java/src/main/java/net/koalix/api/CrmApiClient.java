@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import net.koalix.api.dto.AccountingPeriodReportDto;
 import net.koalix.api.dto.CommercialDocumentDto;
 import net.koalix.api.dto.CommercialDocumentMediaDto;
 import net.koalix.api.dto.DocumentTemplateDto;
@@ -83,6 +84,14 @@ public class CrmApiClient {
 
     public CommercialDocumentMediaDto createCommercialDocumentMedia(CommercialDocumentMediaDto body) {
         return post("/commercial_document_media/", body, CommercialDocumentMediaDto.class);
+    }
+
+    /**
+     * Self-contained snapshot driving the accounting XSL-FO reports
+     * (balance sheet / profit-loss statement).
+     */
+    public AccountingPeriodReportDto getAccountingPeriodReport(long id) {
+        return get("/accounting-periods/" + id + "/report-data/", AccountingPeriodReportDto.class);
     }
 
     /**

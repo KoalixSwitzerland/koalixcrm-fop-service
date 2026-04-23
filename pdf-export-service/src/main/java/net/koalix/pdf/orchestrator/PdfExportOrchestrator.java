@@ -1,6 +1,7 @@
 package net.koalix.pdf.orchestrator;
 
 import net.koalix.api.CrmApiClient;
+import net.koalix.api.dto.AccountingPeriodReportDto;
 import net.koalix.api.dto.CommercialDocumentDto;
 import net.koalix.api.dto.CommercialDocumentMediaDto;
 import net.koalix.api.dto.DocumentTemplateDto;
@@ -13,6 +14,7 @@ import net.koalix.pdf.storage.S3PdfUploader;
 import net.koalix.pdf.template.TemplateAssets;
 import net.koalix.pdf.template.TemplateFetcher;
 import net.koalix.pdf.xml.XmlAggregator;
+import net.koalix.pdf.xml.builders.AccountingReportType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.retry.annotation.Backoff;
@@ -21,9 +23,21 @@ import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
+import java.util.Set;
 
 /**
  * End-to-end orchestration of a single PDF export job.
+ *
+ * <p>Dispatches on {@link PdfExportCommand#sourceModel()}:
+ * <ul>
+ *   <li>commercial documents (Invoice, Quotation, …) → the original flow:
+ *       fetch nested document, render, upload, POST a
+ *       {@code CommercialDocumentMedia} row pointing at the PDF.</li>
+ *   <li>{@code AccountingPeriod} → accounting flow: fetch the report
+ *       snapshot, pick BALANCE_SHEET vs PROFIT_LOSS by template id, render,
+ *       upload, and write the URL straight onto the {@code PDFExportProcess}
+ *       row (there is no CommercialDocumentMedia for accounting reports).</li>
+ * </ul>
  *
  * <p>Retry policy mirrors the Celery worker: 3 attempts, exponential backoff
  * capped at 30 s. Terminal failure PATCHes the process row to {@code failed}
@@ -34,6 +48,11 @@ import java.net.URI;
 public class PdfExportOrchestrator {
 
     private static final Logger LOG = LoggerFactory.getLogger(PdfExportOrchestrator.class);
+
+    private static final String ACCOUNTING_PERIOD_MODEL = "AccountingPeriod";
+    private static final Set<String> COMMERCIAL_MODELS = Set.of(
+            "Invoice", "Quotation", "DeliveryNote", "DespatchAdvice",
+            "PurchaseOrder", "PaymentReminder", "CreditNote");
 
     private final CrmApiClient crm;
     private final TemplateFetcher templateFetcher;
@@ -64,6 +83,17 @@ public class PdfExportOrchestrator {
         crm.patchPdfExportProcess(cmd.processId(),
                 new PdfExportProcessPatchDto("processing", null, null));
 
+        if (ACCOUNTING_PERIOD_MODEL.equals(cmd.sourceModel())) {
+            handleAccounting(cmd);
+        } else if (COMMERCIAL_MODELS.contains(cmd.sourceModel())) {
+            handleCommercial(cmd);
+        } else {
+            throw new IllegalArgumentException(
+                    "Unsupported source_model: " + cmd.sourceModel());
+        }
+    }
+
+    private void handleCommercial(PdfExportCommand cmd) throws Exception {
         PdfExportProcessDto process = crm.getPdfExportProcess(cmd.processId());
         CommercialDocumentDto document = crm.getCommercialDocumentNested(cmd.sourceModel(), cmd.sourceId());
         DocumentTemplateDto template = crm.getDocumentTemplate(cmd.templateSetId());
@@ -96,6 +126,29 @@ public class PdfExportOrchestrator {
 
         LOG.info("PDF export complete process_id={} url={} (fetched process status={})",
                 cmd.processId(), s3Url, process.status());
+    }
+
+    private void handleAccounting(PdfExportCommand cmd) throws Exception {
+        AccountingPeriodReportDto period = crm.getAccountingPeriodReport(cmd.sourceId());
+        AccountingReportType reportType = AccountingReportType.resolve(period, cmd.templateSetId());
+        DocumentTemplateDto template = crm.getDocumentTemplate(cmd.templateSetId());
+
+        TemplateAssets assets = templateFetcher.fetch(template);
+        String headerPicture = assets.logoFile() == null ? null : assets.logoFile().toString();
+        // TODO(#404): wire organisationname from a user-scoped source (likely
+        // UserExtension.user or a per-workspace setting). Empty for now —
+        // the XSL tolerates a missing element.
+        byte[] xmlDocument = xmlAggregator.buildAccounting(period, reportType, null, headerPicture);
+        byte[] pdf = renderer.render(xmlDocument, assets);
+
+        String s3Key = uploader.keyFor(cmd.sourceModel(), cmd.sourceId(), cmd.processId());
+        URI s3Url = uploader.upload(s3Key, pdf);
+
+        crm.patchPdfExportProcess(cmd.processId(),
+                new PdfExportProcessPatchDto("completed", s3Url.toString(), null));
+
+        LOG.info("Accounting PDF export complete process_id={} report={} url={}",
+                cmd.processId(), reportType, s3Url);
     }
 
     @Recover

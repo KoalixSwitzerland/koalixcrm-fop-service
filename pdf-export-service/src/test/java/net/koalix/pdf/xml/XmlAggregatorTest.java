@@ -9,6 +9,7 @@ import net.koalix.api.dto.ProductTypeDto;
 import net.koalix.api.dto.TaxSummaryEntry;
 import net.koalix.api.dto.UserDto;
 import net.koalix.api.dto.UserExtensionDto;
+import net.koalix.pdf.xml.builders.AccountingXmlBuilder;
 import net.koalix.pdf.xml.builders.CommercialDocumentXmlBuilder;
 import net.koalix.pdf.xml.builders.PartyXmlBuilder;
 import net.koalix.pdf.xml.builders.PositionXmlBuilder;
@@ -28,7 +29,7 @@ class XmlAggregatorTest {
         PositionXmlBuilder position = new PositionXmlBuilder();
         CommercialDocumentXmlBuilder docBuilder = new CommercialDocumentXmlBuilder(party, position);
         UserExtensionXmlBuilder ueBuilder = new UserExtensionXmlBuilder();
-        XmlAggregator aggregator = new XmlAggregator(docBuilder, ueBuilder);
+        XmlAggregator aggregator = new XmlAggregator(docBuilder, ueBuilder, new AccountingXmlBuilder());
 
         CommercialDocumentDto document = new CommercialDocumentDto(
                 17L, "Invoice", 12L,
