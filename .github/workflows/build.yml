@@ -1,0 +1,117 @@
+name: build
+
+# Builds, tests, and publishes the Java pdf-export-service image.
+# Ported from koalixcrm/.github/workflows/docker-pdf-service.yml — keeps the
+# image name, tag scheme, cosign signing, and dev-tag layout identical so
+# downstream deployments (koalixcrm-system, prod manifests) keep working.
+
+on:
+  push:
+    branches: [main, develop]
+    tags: ['v*.*.*']
+  pull_request:
+    branches: [main, develop]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/koalixcrm_pdf_service
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # --- Gradle build + unit/integration tests ---
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v3
+      - name: Build & test
+        run: gradle --no-daemon build
+
+  # --- Docker build + push + sign (only on push to main/develop/tags) ---
+  image:
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute dev tag
+        if: github.ref == 'refs/heads/develop'
+        id: create_dev_tag
+        run: |
+          git fetch --tags
+          DEV_TAG=$(git tag -l --sort=-v:refname | grep '\-dev' | head -n 1)
+          if [ -z "$DEV_TAG" ]; then
+            LAST_TAG=$(git tag -l --sort=-v:refname | grep -v '\-dev' | head -n 1)
+            [ -z "$LAST_TAG" ] && LAST_TAG="v0.0.0"
+            DEV_NUMBER=$(git rev-list --count HEAD ^${LAST_TAG} 2>/dev/null || git rev-list --count HEAD)
+            DEV_TAG="${LAST_TAG}-dev${DEV_NUMBER}"
+          fi
+          echo "tag_name=$DEV_TAG" >> $GITHUB_OUTPUT
+
+      - name: Set tag name
+        id: set_tag
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/develop" ]; then
+            echo "tag_name=${{ steps.create_dev_tag.outputs.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag_name=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - uses: sigstore/cosign-installer@9614fae9e5c5eddabb09f90a270fcb487c9f7149 # v3.3.0
+        with:
+          cosign-release: 'v2.2.2'
+
+      - uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226
+
+      - uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ steps.set_tag.outputs.tag_name }},enable=${{ github.ref == 'refs/heads/develop' }}
+            type=raw,value=${{ github.ref_name }},enable=${{ startsWith(github.ref, 'refs/tags/') }}
+
+      - name: Build and push Docker image
+        id: build-and-push
+        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            APP_VERSION=${{ steps.set_tag.outputs.tag_name }}
+            VCS_REF=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Sign the published Docker image
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          DIGEST: ${{ steps.build-and-push.outputs.digest }}
+        run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
