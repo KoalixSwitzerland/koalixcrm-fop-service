@@ -47,7 +47,7 @@ class XmlAggregatorTest {
                         null,
                         new ProductTypeDto(301L, "CONS-H", "Consulting hour", null, null, null, "8.1"),
                         BigDecimal.ZERO, new BigDecimal("120.00"),
-                        null, new BigDecimal("1200.00"), new BigDecimal("97.20"), Boolean.FALSE)),
+                        null, null, new BigDecimal("1200.00"), new BigDecimal("97.20"), Boolean.FALSE)),
                 List.of(new TaxSummaryEntry("8.1", "1200.00", "97.20")),
                 7L, null);
 
