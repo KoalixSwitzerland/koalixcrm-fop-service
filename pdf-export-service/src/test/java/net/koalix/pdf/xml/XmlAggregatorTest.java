@@ -29,7 +29,9 @@ class XmlAggregatorTest {
         PositionXmlBuilder position = new PositionXmlBuilder();
         CommercialDocumentXmlBuilder docBuilder = new CommercialDocumentXmlBuilder(party, position);
         UserExtensionXmlBuilder ueBuilder = new UserExtensionXmlBuilder();
-        XmlAggregator aggregator = new XmlAggregator(docBuilder, ueBuilder, new AccountingXmlBuilder());
+        XmlAggregator aggregator = new XmlAggregator(docBuilder, ueBuilder, new AccountingXmlBuilder(),
+                new net.koalix.pdf.xml.builders.ProjectReportXmlBuilder(),
+                new net.koalix.pdf.xml.builders.WorkReportXmlBuilder());
 
         CommercialDocumentDto document = new CommercialDocumentDto(
                 17L, "Invoice", 12L,

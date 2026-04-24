@@ -51,7 +51,8 @@ class AccountingXmlBuilderTest {
     }
 
     private XmlAggregator aggregator() {
-        return new XmlAggregator(null, null, new AccountingXmlBuilder());
+        return new XmlAggregator(null, null, new AccountingXmlBuilder(),
+                new ProjectReportXmlBuilder(), new WorkReportXmlBuilder());
     }
 
     @Test

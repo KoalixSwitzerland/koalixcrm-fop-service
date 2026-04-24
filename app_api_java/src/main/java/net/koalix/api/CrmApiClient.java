@@ -10,8 +10,10 @@ import net.koalix.api.dto.AccountingPeriodReportDto;
 import net.koalix.api.dto.CommercialDocumentDto;
 import net.koalix.api.dto.CommercialDocumentMediaDto;
 import net.koalix.api.dto.DocumentTemplateDto;
+import net.koalix.api.dto.HumanResourceWorkReportDto;
 import net.koalix.api.dto.PdfExportProcessDto;
 import net.koalix.api.dto.PdfExportProcessPatchDto;
+import net.koalix.api.dto.ProjectReportDto;
 import net.koalix.api.dto.UserExtensionDto;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -92,6 +94,31 @@ public class CrmApiClient {
      */
     public AccountingPeriodReportDto getAccountingPeriodReport(long id) {
         return get("/accounting-periods/" + id + "/report-data/", AccountingPeriodReportDto.class);
+    }
+
+    /**
+     * Self-contained snapshot driving the project_report XSL. Used by
+     * Project (no period scoping → overall report) and ReportingPeriod
+     * (period-scoped — the endpoint is on the reporting-period resource
+     * but returns the same payload shape with {@code reporting_period}
+     * populated).
+     */
+    public ProjectReportDto getProjectReport(long id) {
+        return get("/projects/" + id + "/report-data/", ProjectReportDto.class);
+    }
+
+    public ProjectReportDto getReportingPeriodReport(long id) {
+        return get("/reporting-periods/" + id + "/report-data/", ProjectReportDto.class);
+    }
+
+    /**
+     * Self-contained snapshot driving the work_report XSL.
+     * TODO(#404): accept date_from / date_to once PDFExportProcess carries
+     * a params field; for now the endpoint defaults to a 60-day trailing window.
+     */
+    public HumanResourceWorkReportDto getHumanResourceWorkReport(long id) {
+        return get("/human-resources/" + id + "/work-report-data/",
+                HumanResourceWorkReportDto.class);
     }
 
     /**

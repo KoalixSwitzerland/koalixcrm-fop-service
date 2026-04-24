@@ -66,7 +66,9 @@ class FopRendererIT {
         aggregator = new XmlAggregator(
                 new CommercialDocumentXmlBuilder(new PartyXmlBuilder(), new PositionXmlBuilder()),
                 new UserExtensionXmlBuilder(),
-                new net.koalix.pdf.xml.builders.AccountingXmlBuilder());
+                new net.koalix.pdf.xml.builders.AccountingXmlBuilder(),
+                new net.koalix.pdf.xml.builders.ProjectReportXmlBuilder(),
+                new net.koalix.pdf.xml.builders.WorkReportXmlBuilder());
         renderer = new FopRenderer(fopFactory);
     }
 
