@@ -1,8 +1,11 @@
 package net.koalix.pdf.support;
 
+import net.koalix.api.dto.AccountBookingSumsDto;
+import net.koalix.api.dto.AccountingPeriodReportDto;
 import net.koalix.api.dto.CommercialDocumentDto;
 import net.koalix.api.dto.CommercialDocumentPositionDto;
 import net.koalix.api.dto.CurrencyDto;
+import net.koalix.api.dto.DocumentTemplateDto;
 import net.koalix.api.dto.NestedEmailAssignmentDto;
 import net.koalix.api.dto.NestedPartyDto;
 import net.koalix.api.dto.NestedPartyDto.NestedOrganizationBlock;
@@ -10,12 +13,14 @@ import net.koalix.api.dto.NestedPhoneAssignmentDto;
 import net.koalix.api.dto.NestedPostalAddressDto;
 import net.koalix.api.dto.ProductTypeDto;
 import net.koalix.api.dto.TaxSummaryEntry;
+import net.koalix.api.dto.TextParagraphDto;
 import net.koalix.api.dto.UserDto;
 import net.koalix.api.dto.UserExtensionDto;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Canonical DTO fixtures for integration tests. Minimal but non-null for
@@ -59,7 +64,56 @@ public final class DocumentFixtures {
                         new BigDecimal("1200.00"), new BigDecimal("97.20"),
                         Boolean.FALSE)),
                 List.of(new TaxSummaryEntry("8.1", "1200.00", "97.20")),
-                7L, null);
+                List.of(
+                        new TextParagraphDto("BS", "Sehr geehrte Damen und Herren"),
+                        new TextParagraphDto("AS", "wir erlauben uns, Ihnen folgende Leistungen zu verrechnen."),
+                        new TextParagraphDto("AT", "Vielen Dank fuer Ihren Auftrag.")),
+                7L,
+                // Subclass-specific fields the InvoiceNestedSerializer emits at
+                // top level; they arrive here via @JsonAnySetter in production.
+                Map.of("payable_until", "2025-02-15", "iteration_number", 1));
+    }
+
+    /**
+     * DocumentTemplate fixture carrying the header/footer chrome the XSL prints
+     * via the {@code <document_meta>} block. {@code logoHref} is null so the
+     * aggregator emits no {@code logo_filename} (the IT has no logo asset).
+     */
+    public static DocumentTemplateDto documentTemplate() {
+        return new DocumentTemplateDto(
+                3L, "Default invoice template",
+                "https://crm.example/koalixcrm_core/api/v1/1/document-templates/3/xsl/",
+                "https://crm.example/koalixcrm_core/api/v1/1/document-templates/3/fop-config/",
+                null,
+                "Irgendeine Firma GmbH, Irgendwostrasse 12, CH-8000 Zuerich",
+                "Irgendeine Firma GmbH",
+                "www.koalix.org",
+                "CHF IBAN CH00 0000 0000 0000 0000 0");
+    }
+
+    /**
+     * Accounting-period snapshot with asset/liability (balance sheet) and
+     * earnings/spending (profit-loss) accounts. {@code sumThroughNow} drives
+     * the balance sheet, {@code sumWithinAccountingPeriod} the P&amp;L; overall
+     * earnings 50000 − spendings 12000 = TotalProfitLoss 38000 ("Gewinn").
+     */
+    public static AccountingPeriodReportDto accountingPeriod() {
+        return new AccountingPeriodReportDto(
+                9L, "FY2025", LocalDate.of(2025, 1, 1), LocalDate.of(2025, 12, 31),
+                100L, 200L,
+                new BigDecimal("50000.00"), new BigDecimal("12000.00"),
+                new BigDecimal("15400.00"), new BigDecimal("5000.00"),
+                List.of(
+                        new AccountBookingSumsDto(1L, 1000, "Cash", "A",
+                                BigDecimal.ZERO, new BigDecimal("12000.00"), BigDecimal.ZERO, new BigDecimal("12000.00")),
+                        new AccountBookingSumsDto(2L, 1100, "Receivables", "A",
+                                BigDecimal.ZERO, new BigDecimal("3400.00"), BigDecimal.ZERO, new BigDecimal("3400.00")),
+                        new AccountBookingSumsDto(3L, 2000, "Payables", "L",
+                                BigDecimal.ZERO, new BigDecimal("5000.00"), BigDecimal.ZERO, new BigDecimal("5000.00")),
+                        new AccountBookingSumsDto(4L, 3000, "Sales", "E",
+                                new BigDecimal("50000.00"), new BigDecimal("50000.00"), BigDecimal.ZERO, new BigDecimal("50000.00")),
+                        new AccountBookingSumsDto(5L, 4000, "Rent", "S",
+                                new BigDecimal("12000.00"), new BigDecimal("12000.00"), BigDecimal.ZERO, new BigDecimal("12000.00"))));
     }
 
     public static UserExtensionDto userExtension() {

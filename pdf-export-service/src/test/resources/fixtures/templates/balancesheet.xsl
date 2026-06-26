@@ -101,7 +101,7 @@
                 </fo:table-cell>
              </fo:table-header>
               <xsl:choose>
-                  <xsl:when test="Account[accountType='A']/None">-</xsl:when> 
+                  <xsl:when test="not(Account[@accountType='A'])">-</xsl:when> 
                   <xsl:otherwise>
           <fo:table-body font-size="9pt"
                          font-family="BitstreamVeraSans">
@@ -222,7 +222,6 @@
               id="last-page">-
              </fo:block>
     </fo:flow>
-     <xsl:apply-templates/>
   </fo:page-sequence>
   </fo:root>
 </xsl:template>

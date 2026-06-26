@@ -141,7 +141,8 @@ class TemplateFetcherIT {
                 1L, "Invoice EN",
                 "/document_templates/1/xsl/",
                 "/document_templates/1/fop-config/",
-                "/document_templates/1/logo/");
+                "/document_templates/1/logo/",
+                null, null, null, null);
 
         TemplateAssets assets = fetcher.fetch(dto);
 
@@ -164,7 +165,8 @@ class TemplateFetcherIT {
                 2L, "Invoice (no logo, no fop config)",
                 "/document_templates/2/xsl/",
                 null,
-                null);
+                null,
+                null, null, null, null);
 
         TemplateAssets assets = fetcher.fetch(dto);
 
@@ -183,7 +185,8 @@ class TemplateFetcherIT {
                 3L, "Invoice (logo 404)",
                 "/document_templates/3/xsl/",
                 null,
-                "/document_templates/3/logo/");
+                "/document_templates/3/logo/",
+                null, null, null, null);
 
         TemplateAssets assets;
         try {
@@ -203,7 +206,8 @@ class TemplateFetcherIT {
 
         DocumentTemplateDto dto = new DocumentTemplateDto(
                 4L, "Invoice (xsl 404)",
-                "/document_templates/4/xsl/", null, null);
+                "/document_templates/4/xsl/", null, null,
+                null, null, null, null);
 
         assertThatNoException().isThrownBy(() -> {
             // sanity: stub is reachable
