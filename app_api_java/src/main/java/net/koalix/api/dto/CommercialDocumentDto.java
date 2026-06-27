@@ -1,6 +1,8 @@
 package net.koalix.api.dto;
 
+import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -17,7 +19,11 @@ import java.util.Map;
  * {@code XmlBuilder<T>} to pick. Subclass-specific fields live in
  * {@code extra} (payable_until, valid_until, tracking_reference,
  * iteration_number, corrects_invoice, issue_date, reason, ...) to avoid a
- * seven-way subclass hierarchy on the Java side.
+ * seven-way subclass hierarchy on the Java side. {@code extra} is populated
+ * by {@link JsonAnySetter}: every JSON property the nested serializer emits
+ * that does not bind to a named component above is collected here under its
+ * raw (snake_case) key, so the XSL reads it as
+ * {@code commercial_document/extra/payable_until}.
  *
  * <p>Party semantics: every commercial document carries exactly one
  * {@code party} — the buyer for sales-side documents (Invoice, Quotation,
@@ -33,7 +39,11 @@ public record CommercialDocumentDto(
         NestedPartyDto party,
         Long staff,
         CurrencyDto currency,
-        String externalReference,
+        // The nested serializer emits the customer's reference as
+        // `party_reference` (renamed from the legacy `external_reference` in
+        // v2.0.0); the invoice's "your reference" line reads it via
+        // commercial_document/external_reference, so keep that element name.
+        @JsonProperty("party_reference") String externalReference,
         String description,
         BigDecimal discount,
         LocalDate lastPricingDate,
@@ -45,7 +55,8 @@ public record CommercialDocumentDto(
         Long templateSet,
         List<CommercialDocumentPositionDto> items,
         List<TaxSummaryEntry> taxSummary,
+        List<TextParagraphDto> textParagraphs,
         Long userExtension,
-        Map<String, Object> extra
+        @JsonAnySetter Map<String, Object> extra
 ) {
 }

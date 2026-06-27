@@ -31,8 +31,22 @@ import java.util.function.Supplier;
  * PDF worker. Every call attaches an OIDC bearer token via
  * {@link OidcTokenProvider} and retries once on 401/403 with a freshly-minted
  * token (mirrors {@code koalixcrm/shared/api_client.py}).
+ *
+ * <p>URLs follow the per-app workspace-scoped layout served by Django:
+ * {@code <baseUrl>/koalixcrm_<app>/api/v1/<workspaceId>/<resource>/...} with
+ * hyphenated resource names. The producing app prefix differs per resource —
+ * {@code pdf-export-processes}, {@code document-templates} and
+ * {@code user-extensions} live under {@code koalixcrm_core}; commercial
+ * documents and {@code commercial-document-media} under {@code koalixcrm_contracts};
+ * accounting reports under {@code koalixcrm_accounting}; project / reporting-period /
+ * human-resource reports under {@code koalixcrm_reporting}.
  */
 public class CrmApiClient {
+
+    private static final String CORE_PREFIX = "/koalixcrm_core/api/v1";
+    private static final String CONTRACTS_PREFIX = "/koalixcrm_contracts/api/v1";
+    private static final String ACCOUNTING_PREFIX = "/koalixcrm_accounting/api/v1";
+    private static final String REPORTING_PREFIX = "/koalixcrm_reporting/api/v1";
 
     private final WebClient webClient;
     private final OidcTokenProvider tokenProvider;
@@ -55,45 +69,55 @@ public class CrmApiClient {
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
-    public PdfExportProcessDto getPdfExportProcess(long id) {
-        return get("/pdf_export_processes/" + id + "/", PdfExportProcessDto.class);
+    public PdfExportProcessDto getPdfExportProcess(long workspaceId, long id) {
+        return get(corePath(workspaceId, "pdf-export-processes/" + id + "/"),
+                PdfExportProcessDto.class);
     }
 
-    public PdfExportProcessDto patchPdfExportProcess(long id, PdfExportProcessPatchDto patch) {
-        return patch("/pdf_export_processes/" + id + "/", patch, PdfExportProcessDto.class);
+    public PdfExportProcessDto patchPdfExportProcess(long workspaceId, long id,
+                                                     PdfExportProcessPatchDto patch) {
+        return patch(corePath(workspaceId, "pdf-export-processes/" + id + "/"),
+                patch, PdfExportProcessDto.class);
     }
 
-    public DocumentTemplateDto getDocumentTemplate(long id) {
-        return get("/document_templates/" + id + "/", DocumentTemplateDto.class);
+    public DocumentTemplateDto getDocumentTemplate(long workspaceId, long id) {
+        return get(corePath(workspaceId, "document-templates/" + id + "/"),
+                DocumentTemplateDto.class);
     }
 
-    public UserExtensionDto getUserExtension(long id) {
-        return get("/user_extensions/" + id + "/", UserExtensionDto.class);
+    public UserExtensionDto getUserExtension(long workspaceId, long id) {
+        return get(corePath(workspaceId, "user-extensions/" + id + "/"),
+                UserExtensionDto.class);
     }
 
-    public CommercialDocumentDto getCommercialDocumentNested(String sourceModel, long id) {
-        String path = switch (sourceModel) {
-            case "Invoice" -> "/invoices/" + id + "/nested/";
-            case "Quotation" -> "/quotations/" + id + "/nested/";
-            case "DeliveryNote", "DespatchAdvice" -> "/despatch_advices/" + id + "/nested/";
-            case "PurchaseOrder" -> "/purchase_orders/" + id + "/nested/";
-            case "PaymentReminder" -> "/payment_reminders/" + id + "/nested/";
-            case "CreditNote" -> "/credit_notes/" + id + "/nested/";
+    public CommercialDocumentDto getCommercialDocumentNested(long workspaceId,
+                                                             String sourceModel, long id) {
+        String resource = switch (sourceModel) {
+            case "Invoice" -> "invoices";
+            case "Quotation" -> "quotations";
+            case "DeliveryNote", "DespatchAdvice" -> "despatch-advices";
+            case "PurchaseOrder" -> "purchase-orders";
+            case "PaymentReminder" -> "payment-reminders";
+            case "CreditNote" -> "credit-notes";
             default -> throw new IllegalArgumentException("Unsupported source_model: " + sourceModel);
         };
-        return get(path, CommercialDocumentDto.class);
+        return get(contractsPath(workspaceId, resource + "/" + id + "/nested/"),
+                CommercialDocumentDto.class);
     }
 
-    public CommercialDocumentMediaDto createCommercialDocumentMedia(CommercialDocumentMediaDto body) {
-        return post("/commercial_document_media/", body, CommercialDocumentMediaDto.class);
+    public CommercialDocumentMediaDto createCommercialDocumentMedia(long workspaceId,
+                                                                    CommercialDocumentMediaDto body) {
+        return post(contractsPath(workspaceId, "commercial-document-media/"),
+                body, CommercialDocumentMediaDto.class);
     }
 
     /**
      * Self-contained snapshot driving the accounting XSL-FO reports
      * (balance sheet / profit-loss statement).
      */
-    public AccountingPeriodReportDto getAccountingPeriodReport(long id) {
-        return get("/accounting-periods/" + id + "/report-data/", AccountingPeriodReportDto.class);
+    public AccountingPeriodReportDto getAccountingPeriodReport(long workspaceId, long id) {
+        return get(accountingPath(workspaceId, "accounting-periods/" + id + "/report-data/"),
+                AccountingPeriodReportDto.class);
     }
 
     /**
@@ -103,12 +127,14 @@ public class CrmApiClient {
      * but returns the same payload shape with {@code reporting_period}
      * populated).
      */
-    public ProjectReportDto getProjectReport(long id) {
-        return get("/projects/" + id + "/report-data/", ProjectReportDto.class);
+    public ProjectReportDto getProjectReport(long workspaceId, long id) {
+        return get(reportingPath(workspaceId, "projects/" + id + "/report-data/"),
+                ProjectReportDto.class);
     }
 
-    public ProjectReportDto getReportingPeriodReport(long id) {
-        return get("/reporting-periods/" + id + "/report-data/", ProjectReportDto.class);
+    public ProjectReportDto getReportingPeriodReport(long workspaceId, long id) {
+        return get(reportingPath(workspaceId, "reporting-periods/" + id + "/report-data/"),
+                ProjectReportDto.class);
     }
 
     /**
@@ -116,8 +142,8 @@ public class CrmApiClient {
      * TODO(#404): accept date_from / date_to once PDFExportProcess carries
      * a params field; for now the endpoint defaults to a 60-day trailing window.
      */
-    public HumanResourceWorkReportDto getHumanResourceWorkReport(long id) {
-        return get("/human-resources/" + id + "/work-report-data/",
+    public HumanResourceWorkReportDto getHumanResourceWorkReport(long workspaceId, long id) {
+        return get(reportingPath(workspaceId, "human-resources/" + id + "/work-report-data/"),
                 HumanResourceWorkReportDto.class);
     }
 
@@ -149,6 +175,22 @@ public class CrmApiClient {
     }
 
     // ---- internals ---------------------------------------------------------
+
+    private static String corePath(long workspaceId, String suffix) {
+        return CORE_PREFIX + "/" + workspaceId + "/" + suffix;
+    }
+
+    private static String contractsPath(long workspaceId, String suffix) {
+        return CONTRACTS_PREFIX + "/" + workspaceId + "/" + suffix;
+    }
+
+    private static String accountingPath(long workspaceId, String suffix) {
+        return ACCOUNTING_PREFIX + "/" + workspaceId + "/" + suffix;
+    }
+
+    private static String reportingPath(long workspaceId, String suffix) {
+        return REPORTING_PREFIX + "/" + workspaceId + "/" + suffix;
+    }
 
     private Consumer<HttpHeaders> authHeaders() {
         return headers -> {

@@ -29,6 +29,7 @@ dependencies {
     implementation("org.apache.xmlgraphics:fop:2.9")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.apache.pdfbox:pdfbox:2.0.32")
     testImplementation("com.github.tomakehurst:wiremock-standalone:3.0.1")
     testImplementation("org.testcontainers:junit-jupiter:1.20.3")
     testImplementation("org.testcontainers:localstack:1.20.3")

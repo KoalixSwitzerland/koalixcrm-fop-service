@@ -2,6 +2,7 @@ package net.koalix.pdf.xml;
 
 import net.koalix.api.dto.AccountingPeriodReportDto;
 import net.koalix.api.dto.CommercialDocumentDto;
+import net.koalix.api.dto.DocumentTemplateDto;
 import net.koalix.api.dto.HumanResourceWorkReportDto;
 import net.koalix.api.dto.ProjectReportDto;
 import net.koalix.api.dto.UserExtensionDto;
@@ -48,6 +49,17 @@ public class XmlAggregator {
 
     public byte[] build(CommercialDocumentDto document, UserExtensionDto userExtension)
             throws IOException {
+        return build(document, userExtension, null);
+    }
+
+    /**
+     * Commercial-document flavour with the document-template chrome (addresser,
+     * page-footer text, banking reference, logo filename) emitted as a
+     * {@code <document_meta>} block the XSL-FO header/footer reads. A null
+     * {@code template} simply omits the block.
+     */
+    public byte[] build(CommercialDocumentDto document, UserExtensionDto userExtension,
+                        DocumentTemplateDto template) throws IOException {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             XMLStreamWriter writer = outputFactory.createXMLStreamWriter(out, "UTF-8");
             try {
@@ -57,6 +69,7 @@ public class XmlAggregator {
                 if (userExtension != null) {
                     userExtensionBuilder.write(writer, userExtension);
                 }
+                writeDocumentMeta(writer, template);
                 writer.writeEndElement();
                 writer.writeEndDocument();
             } finally {
@@ -66,6 +79,24 @@ public class XmlAggregator {
         } catch (javax.xml.stream.XMLStreamException e) {
             throw new IOException("XML aggregation failed", e);
         }
+    }
+
+    private void writeDocumentMeta(XMLStreamWriter writer, DocumentTemplateDto template)
+            throws javax.xml.stream.XMLStreamException {
+        if (template == null) {
+            return;
+        }
+        writer.writeStartElement("document_meta");
+        XmlWriteSupport.writeText(writer, "addresser", template.addresser());
+        XmlWriteSupport.writeText(writer, "page_footer_left", template.pageFooterLeft());
+        XmlWriteSupport.writeText(writer, "page_footer_middle", template.pageFooterMiddle());
+        XmlWriteSupport.writeText(writer, "banking_account_reference", template.bankingAccountReference());
+        // The logo is downloaded next to the XSL; the XSL references it by this
+        // bare filename, resolved against the FOP base URI (the working dir).
+        if (template.logoHref() != null) {
+            XmlWriteSupport.writeText(writer, "logo_filename", "logo");
+        }
+        writer.writeEndElement();
     }
 
     /**

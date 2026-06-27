@@ -52,7 +52,7 @@ class XmlAggregatorTest {
                         BigDecimal.ZERO, new BigDecimal("120.00"),
                         null, null, new BigDecimal("1200.00"), new BigDecimal("97.20"), Boolean.FALSE)),
                 List.of(new TaxSummaryEntry("8.1", "1200.00", "97.20")),
-                7L, null);
+                null, 7L, null);
 
         UserExtensionDto userExtension = new UserExtensionDto(
                 7L,

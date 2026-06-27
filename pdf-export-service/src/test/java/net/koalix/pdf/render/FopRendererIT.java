@@ -95,7 +95,7 @@ class FopRendererIT {
     void rendersWithKoalixcrmExportShape(String templateFileName) throws Exception {
         CommercialDocumentDto doc = DocumentFixtures.invoice();
         UserExtensionDto user = DocumentFixtures.userExtension();
-        byte[] xml = aggregator.build(doc, user);
+        byte[] xml = aggregator.build(doc, user, DocumentFixtures.documentTemplate());
 
         Path xslCopy = fopBaseDir.resolve(templateFileName);
         copyClasspath("/fixtures/templates/" + templateFileName, xslCopy);
@@ -118,6 +118,106 @@ class FopRendererIT {
         // Signal bytes for humans scanning the CI log. Not an assertion.
         System.out.printf(Locale.ROOT, "[FopRendererIT] %-50s pdf=%,8d bytes  -> %s%n",
                 templateFileName, pdf.length, outFile.toAbsolutePath());
+    }
+
+    /**
+     * Tier-B reconciliation guard: the invoice template must now render the
+     * actual document data, not a blank page. Extracts the PDF text and asserts
+     * the recipient, positions, totals, dates, and subclass-specific fields
+     * (payable_until / iteration_number, routed through {@code extra}) all land.
+     */
+    @org.junit.jupiter.api.Test
+    void rendersInvoiceWithPopulatedContent() throws Exception {
+        byte[] xml = aggregator.build(
+                DocumentFixtures.invoice(),
+                DocumentFixtures.userExtension(),
+                DocumentFixtures.documentTemplate());
+
+        Path xslCopy = fopBaseDir.resolve("invoice.xsl");
+        copyClasspath("/fixtures/templates/invoice.xsl", xslCopy);
+        TemplateAssets assets = new TemplateAssets(xslCopy, fopBaseDir.resolve("fop.xconf"), null);
+
+        byte[] pdf = renderer.render(xml, assets);
+
+        String text;
+        try (org.apache.pdfbox.pdmodel.PDDocument pd =
+                     org.apache.pdfbox.pdmodel.PDDocument.load(pdf)) {
+            text = new org.apache.pdfbox.text.PDFTextStripper().getText(pd);
+        }
+        String flat = text.replaceAll("\\s+", " ");
+
+        assertThat(flat)
+                .as("recipient party + address")
+                .contains("ACME SA")
+                .contains("Bahnhofstrasse 1")
+                .contains("Zurich");
+        assertThat(flat)
+                .as("position line + product type")
+                .contains("Consulting hour");
+        assertThat(flat)
+                .as("document numbers / reference")
+                .contains("KUN-42")
+                .contains("REC-17")
+                .contains("EXT-1");
+        assertThat(flat)
+                .as("totals formatted with the european decimal-format")
+                .contains("1.200,00");
+        assertThat(flat)
+                .as("date_of_creation-less invoice still prints payable_until from extra")
+                .contains("15.02.2025");
+        assertThat(flat)
+                .as("issuing user (user_extension)")
+                .contains("Aaron");
+        assertThat(flat)
+                .as("document_meta footer / addresser chrome")
+                .contains("Irgendeine Firma GmbH");
+    }
+
+    /**
+     * Tier-B accounting reconciliation: the balance-sheet template renders the
+     * asset/liability accounts and total via the {@code buildAccounting} path
+     * (its XSL root is {@code koalixaccountingbalacesheet}, NOT wrapped in
+     * {@code <koalixcrm-export>}).
+     */
+    @org.junit.jupiter.api.Test
+    void rendersBalanceSheetWithContent() throws Exception {
+        byte[] xml = aggregator.buildAccounting(
+                DocumentFixtures.accountingPeriod(),
+                net.koalix.pdf.xml.builders.AccountingReportType.BALANCE_SHEET,
+                "Koalix GmbH", null);
+        String flat = renderToText("balancesheet.xsl", xml);
+        assertThat(flat)
+                .contains("Koalix GmbH")
+                .contains("Cash").contains("Receivables").contains("Payables")
+                .contains("12.000,00");
+    }
+
+    /** Profit-loss flavour: earnings/spending accounts + TotalProfitLoss. */
+    @org.junit.jupiter.api.Test
+    void rendersProfitLossWithContent() throws Exception {
+        byte[] xml = aggregator.buildAccounting(
+                DocumentFixtures.accountingPeriod(),
+                net.koalix.pdf.xml.builders.AccountingReportType.PROFIT_LOSS,
+                "Koalix GmbH", null);
+        String flat = renderToText("profitlossstatement.xsl", xml);
+        assertThat(flat)
+                .contains("Koalix GmbH")
+                .contains("Sales").contains("Rent")
+                .contains("50.000,00")
+                .contains("38.000,00");
+    }
+
+    /** Render an accounting XML through the named XSL and return its flattened text. */
+    private String renderToText(String templateFileName, byte[] xml) throws Exception {
+        Path xsl = fopBaseDir.resolve(templateFileName);
+        copyClasspath("/fixtures/templates/" + templateFileName, xsl);
+        byte[] pdf = renderer.render(xml,
+                new TemplateAssets(xsl, fopBaseDir.resolve("fop.xconf"), null));
+        try (org.apache.pdfbox.pdmodel.PDDocument pd =
+                     org.apache.pdfbox.pdmodel.PDDocument.load(pdf)) {
+            return new org.apache.pdfbox.text.PDFTextStripper().getText(pd)
+                    .replaceAll("\\s+", " ");
+        }
     }
 
     private static void copyClasspath(String resource, Path target) throws Exception {
