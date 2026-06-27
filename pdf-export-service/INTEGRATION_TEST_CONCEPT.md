@@ -141,10 +141,58 @@ Reconciliation is split into two tiers:
   makes `FopRendererIT` green. PDFs are valid but field-level XPaths
   (`object[@model='crm.xxx']/field[@name='yyy']`) still return empty
   strings, so most cells are blank.
-- **Tier B — per-template XPath rewrite.** Not done. Each template needs
-  its data-lookup XPaths rewritten against the new tree
-  (`commercial_document/customer/contact/name`,
-  `user_extension/user/first_name`, `.../items/position`, etc.).
+- **Tier B — per-template XPath rewrite.** Done for all 12 IT templates.
+  Commercial docs (invoice, quote, deliveryorder, purchaseorder,
+  purchaseconfirmation in de+en, plus the media variants koalix_invoice /
+  acme_quote / sample_quote) collapse the legacy per-subclass document models
+  (`crm.salesdocument` / `crm.salescontract` / `crm.invoice` / `crm.quote` /
+  `crm.purchaseorder` …) onto the single `commercial_document` node, with
+  subclass-only fields (payable_until / valid_until / iteration_number) routed
+  through `commercial_document/extra/*`. The reports (project_report ×3,
+  work_report) keep their `<object model="crm.project|task|work|…">` wrappers —
+  the report builders deliberately reproduce that shape — and only convert
+  `field[@name='X']` → field-as-element `X`; the work-report user binding was
+  fixed from the dropped `userextension/user` to the synthetic
+  `user_extension/user` the builder emits. All 12 render populated PDFs;
+  `FopRendererIT` is green (incl. `rendersInvoiceWithPopulatedContent`).
+
+  The accounting templates (balancesheet / profitlossstatement, de+en+fixtures)
+  are now reconciled too: they render from the `buildAccounting` path (root
+  `koalixaccountingbalacesheet` / `koalixaccountingprofitlossstatement`, NOT
+  wrapped in `<koalixcrm-export>`) against the `AccountingXmlBuilder`
+  element-style shape (`Account[@accountType]` → `AccountNumber`/`accountName`/
+  `currentValue`, `TotalProfitLoss`). DE already matched; the legacy `/None`
+  empty-test was fixed to `not(Account[@accountType='X'])`, the EN copies
+  (still django-objects, expecting an unsupported `Overall_Assets`/
+  `Overall_Liabilities` shape) were replaced with the corrected DE, and a
+  latent FO bug in the P&L "Aufwand" table (bare `fo:table-cell`s mixed with
+  `for-each` rows inside one `fo:table-body`) was fixed by wrapping the header
+  cells in `fo:table-header`. Covered by `rendersBalanceSheetWithContent` /
+  `rendersProfitLossWithContent` (PDFBox). What the invoice reconciliation
+  introduced (reused by the rest):
+  - Every data XPath rewritten onto the new tree
+    (`commercial_document/party/display_name`, `.../party/postal_address`,
+    `.../items/position`, `product_type/title`, `../../currency/short_name`,
+    `user_extension/user/first_name`, document-level totals, etc.).
+  - **Subclass fields via `extra`.** `CommercialDocumentDto.extra` is now a
+    `@JsonAnySetter` map, so `payable_until` / `iteration_number` (emitted by
+    the Invoice/PaymentReminder serializers) reach the XSL as
+    `commercial_document/extra/<key>`.
+  - **Text paragraphs.** New `TextParagraphDto` + `text_paragraphs` on the
+    nested serializer + builder → `<text_paragraphs><text_paragraph
+    purpose="BS"…>`; the XSL places BS/AS/AT around the positions table.
+  - **`<document_meta>` chrome.** `XmlAggregator.build(doc, user, template)`
+    emits addresser / page-footer / banking-ref / logo_filename from the
+    `DocumentTemplateDto`. NB the v2.0.0 `DocumentTemplate` model dropped the
+    `addresser` / `pagefooter*` / `bankingaccountref` columns, so those stay
+    empty until they are re-added to the model + serializer (an architect
+    call); the plumbing and XSL guards are in place for when they are.
+  - **`party_reference` binding.** The DTO's `externalReference` now maps to
+    the JSON `party_reference` (the v2.0.0 rename) so the "your reference"
+    line populates.
+  - Verified by XSLT-1.0 transform (lxml) of the builder-shaped XML and by the
+    new `FopRendererIT.rendersInvoiceWithPopulatedContent()` (PDFBox text
+    assertions). Remaining per-template work below.
   This will surface gaps in the current DTOs — fields the XSL templates
   expect that aren't currently emitted. Known gaps spotted while patching
   Tier A (list is not exhaustive):

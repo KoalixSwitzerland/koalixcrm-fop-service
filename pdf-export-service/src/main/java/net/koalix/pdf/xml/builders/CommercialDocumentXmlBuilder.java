@@ -83,6 +83,16 @@ public class CommercialDocumentXmlBuilder implements XmlBuilder<CommercialDocume
             }
             writer.writeEndElement();
         }
+        if (dto.textParagraphs() != null) {
+            writer.writeStartElement("text_paragraphs");
+            for (net.koalix.api.dto.TextParagraphDto tp : dto.textParagraphs()) {
+                writer.writeStartElement("text_paragraph");
+                writeAttribute(writer, "purpose", tp.purpose());
+                writer.writeCharacters(tp.textParagraph() == null ? "" : tp.textParagraph());
+                writer.writeEndElement();
+            }
+            writer.writeEndElement();
+        }
         if (dto.extra() != null) {
             writer.writeStartElement("extra");
             for (Map.Entry<String, Object> e : dto.extra().entrySet()) {

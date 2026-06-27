@@ -101,7 +101,7 @@
                 </fo:table-cell>
              </fo:table-header>
               <xsl:choose>
-                  <xsl:when test="Account[accountType='E']/None">-</xsl:when> 
+                  <xsl:when test="not(Account[@accountType='E'])">-</xsl:when> 
                   <xsl:otherwise>
           <fo:table-body font-size="9pt"
                          font-family="BitstreamVeraSans">
@@ -138,10 +138,9 @@
           <fo:table-column column-width="3cm"/>
           <fo:table-column column-width="11cm"/>
           <fo:table-column column-width="3cm"/>
-          <fo:table-body font-size="9pt"
-                         font-family="BitstreamVeraSans">
+          <fo:table-header font-size="9pt" line-height="9pt" font-weight="bold" font-family="BitstreamVeraSans">
                 <fo:table-cell border-color="black" border-style="solid" border-width="0.5pt" padding="2.5pt">
-                   <fo:block  text-align="start" font-size="9pt" line-height="9pt" font-weight="bold" font-family="BitstreamVeraSans" >
+                   <fo:block  text-align="start" >
                       Kontonummer
                    </fo:block>
                 </fo:table-cell>
@@ -155,6 +154,9 @@
                       Wert
                    </fo:block>
                 </fo:table-cell>
+             </fo:table-header>
+          <fo:table-body font-size="9pt"
+                         font-family="BitstreamVeraSans">
          <xsl:for-each select="Account[@accountType='S']">
           <xsl:sort select="AccountNumber" data-type="number"/>
              <fo:table-row keep-together="always">
@@ -220,7 +222,6 @@
               id="last-page">-
              </fo:block>
     </fo:flow>
-     <xsl:apply-templates/>
   </fo:page-sequence>
   </fo:root>
 </xsl:template>

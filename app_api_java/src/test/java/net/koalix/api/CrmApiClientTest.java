@@ -46,7 +46,7 @@ class CrmApiClientTest {
 
     @Test
     void getPdfExportProcess_parsesJson() {
-        wireMock.stubFor(get(urlEqualTo("/pdf_export_processes/42/"))
+        wireMock.stubFor(get(urlEqualTo("/koalixcrm_core/api/v1/9/pdf-export-processes/42/"))
                 .willReturn(okJson("""
                         {
                           "id": 42,
@@ -61,7 +61,7 @@ class CrmApiClientTest {
                           "updated_at": "2026-04-16T12:35:10Z"
                         }
                         """)));
-        PdfExportProcessDto dto = client.getPdfExportProcess(42L);
+        PdfExportProcessDto dto = client.getPdfExportProcess(9L, 42L);
         assertThat(dto.id()).isEqualTo(42L);
         assertThat(dto.sourceModel()).isEqualTo("Invoice");
         assertThat(dto.status()).isEqualTo("processing");
@@ -69,23 +69,23 @@ class CrmApiClientTest {
 
     @Test
     void patchPdfExportProcess_sendsBodyAndReturnsDto() {
-        wireMock.stubFor(patch(urlEqualTo("/pdf_export_processes/42/"))
+        wireMock.stubFor(patch(urlEqualTo("/koalixcrm_core/api/v1/9/pdf-export-processes/42/"))
                 .willReturn(okJson("""
                         {"id":42,"source_model":"Invoice","source_id":17,"status":"completed"}
                         """)));
 
         PdfExportProcessDto dto = client.patchPdfExportProcess(
-                42L, new PdfExportProcessPatchDto("completed", "http://s3/x.pdf", null));
+                9L, 42L, new PdfExportProcessPatchDto("completed", "http://s3/x.pdf", null));
 
         assertThat(dto.status()).isEqualTo("completed");
-        wireMock.verify(patchRequestedFor(urlEqualTo("/pdf_export_processes/42/"))
+        wireMock.verify(patchRequestedFor(urlEqualTo("/koalixcrm_core/api/v1/9/pdf-export-processes/42/"))
                 .withHeader("Authorization", equalTo("Bearer T1"))
                 .withRequestBody(matchingJsonPath("$.status", equalTo("completed"))));
     }
 
     @Test
     void createMedia_postsJson() {
-        wireMock.stubFor(post(urlEqualTo("/commercial_document_media/"))
+        wireMock.stubFor(post(urlEqualTo("/koalixcrm_contracts/api/v1/9/commercial-document-media/"))
                 .willReturn(aResponse().withStatus(201).withHeader("Content-Type", "application/json")
                         .withBody("""
                                 {"id":101,"commercial_document":17,"s3_url":"http://s3/x.pdf","status":"completed"}
@@ -95,7 +95,7 @@ class CrmApiClientTest {
                 null, 17L, 42L, "http://s3/x.pdf", "pdf-exports/x.pdf",
                 "completed", "application/pdf", null, null, null);
 
-        CommercialDocumentMediaDto created = client.createCommercialDocumentMedia(body);
+        CommercialDocumentMediaDto created = client.createCommercialDocumentMedia(9L, body);
 
         assertThat(created.id()).isEqualTo(101L);
     }
@@ -103,17 +103,17 @@ class CrmApiClientTest {
     @Test
     void retriesOnce_on401() {
         // first call fails, refresh, second call succeeds
-        wireMock.stubFor(get(urlEqualTo("/pdf_export_processes/7/"))
+        wireMock.stubFor(get(urlEqualTo("/koalixcrm_core/api/v1/9/pdf-export-processes/7/"))
                 .inScenario("auth")
                 .whenScenarioStateIs(com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED)
                 .willReturn(aResponse().withStatus(401))
                 .willSetStateTo("retried"));
-        wireMock.stubFor(get(urlEqualTo("/pdf_export_processes/7/"))
+        wireMock.stubFor(get(urlEqualTo("/koalixcrm_core/api/v1/9/pdf-export-processes/7/"))
                 .inScenario("auth")
                 .whenScenarioStateIs("retried")
                 .willReturn(okJson("{\"id\":7,\"source_model\":\"Invoice\",\"source_id\":1,\"status\":\"pending\"}")));
 
-        PdfExportProcessDto dto = client.getPdfExportProcess(7L);
+        PdfExportProcessDto dto = client.getPdfExportProcess(9L, 7L);
         assertThat(dto.id()).isEqualTo(7L);
     }
 }

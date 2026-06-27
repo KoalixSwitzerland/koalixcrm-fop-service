@@ -33,7 +33,7 @@
                                         <fo:external-graphic content-width="6.0cm">
                                             <xsl:attribute name="src">
                                                 file:///<xsl:value-of select="filebrowser_directory"/>/<xsl:value-of
-                                                    select="object[@model='djangoUserExtension.documenttemplate']/field[@name='logo']"/>
+                                                    select="document_meta/logo_filename"/>
                                             </xsl:attribute>
                                         </fo:external-graphic>
                                     </fo:block>
@@ -99,7 +99,7 @@
                                               font-family="BitstreamVeraSans"
                                               text-align="start">
                                         <xsl:value-of
-                                                select="object[@model='djangoUserExtension.documenttemplate']/field[@name='pagefooterleft']"/>
+                                                select="document_meta/page_footer_left"/>
                                     </fo:block>
                                 </fo:table-cell>
                                 <fo:table-cell>
@@ -107,7 +107,7 @@
                                               font-family="BitstreamVeraSans"
                                               text-align="end">
                                         <xsl:value-of
-                                                select="object[@model='djangoUserExtension.documenttemplate']/field[@name='pagefootermiddle']"/>
+                                                select="document_meta/page_footer_middle"/>
                                     </fo:block>
                                 </fo:table-cell>
                                 <fo:table-cell>
@@ -115,7 +115,7 @@
                                               font-family="BitstreamVeraSans"
                                               text-align="end">
                                         <xsl:value-of
-                                                select="object[@model='djangoUserExtension.documenttemplate']/field[@name='bankingaccountref']"/>
+                                                select="document_meta/banking_account_reference"/>
                                     </fo:block>
                                 </fo:table-cell>
                                 <fo:table-cell>
@@ -132,14 +132,14 @@
                 <fo:flow flow-name="xsl-region-body">
                     <xsl:for-each select="object[@model='crm.textparagraphinsalesdocument']">
                         <xsl:choose>
-                            <xsl:when test="field[@name='purpose']='BS'">
+                            <xsl:when test="purpose='BS'">
                                 <fo:block font-size="9pt"
                                           font-family="BitstreamVeraSans"
                                           color="black"
                                           text-align="left"
                                           margin-top="2cm"
                                           linefeed-treatment="preserve">
-                                    <xsl:value-of select="field[@name='text_paragraph']"/>
+                                    <xsl:value-of select="text_paragraph"/>
                                 </fo:block>
                             </xsl:when>
                         </xsl:choose>
@@ -164,7 +164,7 @@
                                                   color="black"
                                                   text-align="left"
                                                   font-weight="bold">
-                                            Report Period: <xsl:value-of select="object[@model='crm.reportingperiod']/field[@name='title']"/>
+                                            Report Period: <xsl:value-of select="object[@model='crm.reportingperiod']/title"/>
                                         </fo:block>
                                     </xsl:if>
                                     <fo:block font-size="10pt"
@@ -173,7 +173,7 @@
                                               text-align="left"
                                               font-weight="bold"
                                               margin-bottom="1cm">
-                                        Project: <xsl:value-of select="object[@model='crm.project']/field[@name='project_name']"/>
+                                        Project: <xsl:value-of select="object[@model='crm.project']/project_name"/>
                                     </fo:block>
                                 </fo:table-cell>
                                 <fo:table-cell>
@@ -186,7 +186,7 @@
 
                     <xsl:for-each select="object[@model='crm.textparagraphinsalesdocument']">
                         <xsl:choose>
-                            <xsl:when test="field[@name='purpose']='AS'">
+                            <xsl:when test="purpose='AS'">
                                 <fo:block font-size="9pt"
                                           font-family="BitstreamVeraSans"
                                           color="black"
@@ -194,7 +194,7 @@
                                           margin-top="1cm"
                                           linefeed-treatment="preserve"
                                           page-break-after="always">
-                                    <xsl:value-of select="field[@name='text_paragraph']"/>
+                                    <xsl:value-of select="text_paragraph"/>
                                 </fo:block>
                             </xsl:when>
                         </xsl:choose>
@@ -259,7 +259,7 @@
                                                    padding="2.5pt">
                                         <fo:block-container overflow="hidden">
                                             <fo:block text-align="start">
-                                                <xsl:value-of select="field[@name='title']"/>
+                                                <xsl:value-of select="title"/>
                                             </fo:block>
                                         </fo:block-container>
                                     </fo:table-cell>
@@ -269,7 +269,7 @@
                                             <fo:list-block text-align="start">
                                                 <xsl:for-each select="../object[@model='crm.work']">
                                                     <xsl:choose>
-                                                        <xsl:when test="field[@name='task'] = $current_task_id">
+                                                        <xsl:when test="task = $current_task_id">
                                                             <fo:list-item>
                                                                 <fo:list-item-label end-indent="label-end()">
                                                                     <fo:block>
@@ -279,14 +279,14 @@
                                                                 <fo:list-item-body start-indent="body-start()">
                                                                     <fo:block>
                                                                         <xsl:value-of
-                                                                                select="field[@name='description']"/>
+                                                                                select="description"/>
                                                                     </fo:block>
                                                                 </fo:list-item-body>
                                                             </fo:list-item>
                                                         </xsl:when>
                                                     </xsl:choose>
                                                 </xsl:for-each>
-                                                <xsl:if test="count(../object[@model='crm.work']/field[@name='task'][text()=$current_task_id]) = 0">
+                                                <xsl:if test="count(../object[@model='crm.work']/task[text()=$current_task_id]) = 0">
                                                     <fo:list-item>
                                                         <fo:list-item-label end-indent="label-end()">
                                                             <fo:block>
@@ -377,7 +377,6 @@
                     </fo:block>
                     <fo:block id="last-page"></fo:block>
                 </fo:flow>
-                <xsl:apply-templates/>
             </fo:page-sequence>
         </fo:root>
     </xsl:template>
