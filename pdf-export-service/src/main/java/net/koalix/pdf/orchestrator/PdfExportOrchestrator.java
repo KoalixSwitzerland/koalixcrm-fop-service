@@ -94,7 +94,7 @@ public class PdfExportOrchestrator {
                     "template_set_id is 0 (not set) for process_id=" + cmd.processId());
         }
 
-        crm.patchPdfExportProcess(cmd.processId(),
+        crm.patchPdfExportProcess(cmd.workspaceId(), cmd.processId(),
                 new PdfExportProcessPatchDto("processing", null, null));
 
         switch (cmd.sourceModel()) {
@@ -114,15 +114,16 @@ public class PdfExportOrchestrator {
     }
 
     private void handleCommercial(PdfExportCommand cmd) throws Exception {
-        PdfExportProcessDto process = crm.getPdfExportProcess(cmd.processId());
-        CommercialDocumentDto document = crm.getCommercialDocumentNested(cmd.sourceModel(), cmd.sourceId());
-        DocumentTemplateDto template = crm.getDocumentTemplate(cmd.templateSetId());
+        PdfExportProcessDto process = crm.getPdfExportProcess(cmd.workspaceId(), cmd.processId());
+        CommercialDocumentDto document = crm.getCommercialDocumentNested(
+                cmd.workspaceId(), cmd.sourceModel(), cmd.sourceId());
+        DocumentTemplateDto template = crm.getDocumentTemplate(cmd.workspaceId(), cmd.templateSetId());
         UserExtensionDto userExtension = document.userExtension() != null
-                ? crm.getUserExtension(document.userExtension())
+                ? crm.getUserExtension(cmd.workspaceId(), document.userExtension())
                 : null;
 
         TemplateAssets assets = templateFetcher.fetch(template);
-        byte[] xmlDocument = xmlAggregator.build(document, userExtension);
+        byte[] xmlDocument = xmlAggregator.build(document, userExtension, template);
         byte[] pdf = renderer.render(xmlDocument, assets);
 
         String s3Key = uploader.keyFor(cmd.sourceModel(), cmd.sourceId(), cmd.processId());
@@ -139,9 +140,9 @@ public class PdfExportOrchestrator {
                 cmd.printedByUserId() == 0 ? null : cmd.printedByUserId(),
                 null,
                 null);
-        crm.createCommercialDocumentMedia(media);
+        crm.createCommercialDocumentMedia(cmd.workspaceId(), media);
 
-        crm.patchPdfExportProcess(cmd.processId(),
+        crm.patchPdfExportProcess(cmd.workspaceId(), cmd.processId(),
                 new PdfExportProcessPatchDto("completed", s3Url.toString(), null));
 
         LOG.info("PDF export complete process_id={} url={} (fetched process status={})",
@@ -149,9 +150,9 @@ public class PdfExportOrchestrator {
     }
 
     private void handleAccounting(PdfExportCommand cmd) throws Exception {
-        AccountingPeriodReportDto period = crm.getAccountingPeriodReport(cmd.sourceId());
+        AccountingPeriodReportDto period = crm.getAccountingPeriodReport(cmd.workspaceId(), cmd.sourceId());
         AccountingReportType reportType = AccountingReportType.resolve(period, cmd.templateSetId());
-        DocumentTemplateDto template = crm.getDocumentTemplate(cmd.templateSetId());
+        DocumentTemplateDto template = crm.getDocumentTemplate(cmd.workspaceId(), cmd.templateSetId());
 
         TemplateAssets assets = templateFetcher.fetch(template);
         String headerPicture = assets.logoFile() == null ? null : assets.logoFile().toString();
@@ -162,7 +163,7 @@ public class PdfExportOrchestrator {
         String s3Key = uploader.keyFor(cmd.sourceModel(), cmd.sourceId(), cmd.processId());
         URI s3Url = uploader.upload(s3Key, pdf);
 
-        crm.patchPdfExportProcess(cmd.processId(),
+        crm.patchPdfExportProcess(cmd.workspaceId(), cmd.processId(),
                 new PdfExportProcessPatchDto("completed", s3Url.toString(), null));
 
         LOG.info("Accounting PDF export complete process_id={} report={} url={}",
@@ -171,9 +172,9 @@ public class PdfExportOrchestrator {
 
     private void handleProjectReport(PdfExportCommand cmd, boolean periodScoped) throws Exception {
         ProjectReportDto report = periodScoped
-                ? crm.getReportingPeriodReport(cmd.sourceId())
-                : crm.getProjectReport(cmd.sourceId());
-        DocumentTemplateDto template = crm.getDocumentTemplate(cmd.templateSetId());
+                ? crm.getReportingPeriodReport(cmd.workspaceId(), cmd.sourceId())
+                : crm.getProjectReport(cmd.workspaceId(), cmd.sourceId());
+        DocumentTemplateDto template = crm.getDocumentTemplate(cmd.workspaceId(), cmd.templateSetId());
         TemplateAssets assets = templateFetcher.fetch(template);
 
         // Download the cost-overview SVG into the FOP working directory
@@ -191,7 +192,7 @@ public class PdfExportOrchestrator {
         String s3Key = uploader.keyFor(cmd.sourceModel(), cmd.sourceId(), cmd.processId());
         URI s3Url = uploader.upload(s3Key, pdf);
 
-        crm.patchPdfExportProcess(cmd.processId(),
+        crm.patchPdfExportProcess(cmd.workspaceId(), cmd.processId(),
                 new PdfExportProcessPatchDto("completed", s3Url.toString(), null));
 
         LOG.info("Project report PDF complete process_id={} period_scoped={} url={}",
@@ -199,8 +200,8 @@ public class PdfExportOrchestrator {
     }
 
     private void handleWorkReport(PdfExportCommand cmd) throws Exception {
-        HumanResourceWorkReportDto report = crm.getHumanResourceWorkReport(cmd.sourceId());
-        DocumentTemplateDto template = crm.getDocumentTemplate(cmd.templateSetId());
+        HumanResourceWorkReportDto report = crm.getHumanResourceWorkReport(cmd.workspaceId(), cmd.sourceId());
+        DocumentTemplateDto template = crm.getDocumentTemplate(cmd.workspaceId(), cmd.templateSetId());
         TemplateAssets assets = templateFetcher.fetch(template);
 
         byte[] xmlDocument = xmlAggregator.buildWorkReport(report);
@@ -209,7 +210,7 @@ public class PdfExportOrchestrator {
         String s3Key = uploader.keyFor(cmd.sourceModel(), cmd.sourceId(), cmd.processId());
         URI s3Url = uploader.upload(s3Key, pdf);
 
-        crm.patchPdfExportProcess(cmd.processId(),
+        crm.patchPdfExportProcess(cmd.workspaceId(), cmd.processId(),
                 new PdfExportProcessPatchDto("completed", s3Url.toString(), null));
 
         LOG.info("Work report PDF complete process_id={} url={}", cmd.processId(), s3Url);
@@ -230,7 +231,7 @@ public class PdfExportOrchestrator {
     @Recover
     public void recover(Exception ex, PdfExportCommand cmd) {
         LOG.error("Terminal failure for process_id={}: {}", cmd.processId(), ex.toString(), ex);
-        crm.patchPdfExportProcess(cmd.processId(),
+        crm.patchPdfExportProcess(cmd.workspaceId(), cmd.processId(),
                 new PdfExportProcessPatchDto("failed", null, ex.toString()));
     }
 }
